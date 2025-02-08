@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <title>판별식을 이용한 이차부등식의 풀이</title>
+  <!-- MathJax (LaTeX 수식 렌더링) -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      margin: 0; 
+      padding: 0;
+      background-color: #000; /* 배경 검정 */
+      color: #fff;           /* 글자 흰색 */
+      font-family: sans-serif;
+    }
+    #container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 1em;
+    }
+    h1, h2, h3 {
+      text-align: center;
+    }
+    .centered {
+      text-align: center;
+    }
+    .energy-bar {
+      width: 80%;
+      height: 10px;
+      background-color: #fff;
+      margin: 0 auto 10px;
+      transition: width 1s linear;
+    }
+    .difficulty-btn {
+      background: none;
+      border: 1px solid #fff;
+      color: #fff;
+      padding: 8px 16px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    .difficulty-btn:hover {
+      background-color: #444;
+    }
+    .hidden {
+      display: none;
+    }
+    .answer-choice {
+      margin: 0.5em 0;
+    }
+    #response {
+      white-space: pre-wrap;
+      margin-top: 1em;
+    }
+    input[type="text"] {
+      width: 50%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 1em;
+    }
+  </style>
+</head>
+<body>
+<div id="container">
+  <h1>판별식을 이용한 이차부등식의 풀이</h1>
+
+  <!-- 이름 입력 화면 -->
+  <div id="welcome-screen">
+    <div class="centered">
+      <p>이름을 입력하세요.</p>
+      <input type="text" id="playerName" placeholder="이름">
+    </div>
+    <div class="centered">
+      <p>난이도를 선택하세요.</p>
+      <button class="difficulty-btn" onclick="startGame('top')">최상 (20초)</button>
+      <button class="difficulty-btn" onclick="startGame('high')">상 (30초)</button>
+      <button class="difficulty-btn" onclick="startGame('mid')">중 (40초)</button>
+      <button class="difficulty-btn" onclick="startGame('low')">하 (시간제한없음)</button>
+    </div>
+  </div>
+
+  <!-- 게임 진행 화면 -->
+  <div id="game-screen" class="hidden">
+    <div class="centered">
+      <div>남은 기회: <span id="lives">3</span></div>
+      <div>현재 점수: <span id="score">0</span></div>
+      <div>총 경과 시간: <span id="elapsedTime">0</span>초</div>
+      <div class="energy-bar" id="energyBar"></div>
+    </div>
+    <hr/>
+    <div id="question-container"></div>
+  </div>
+
+  <!-- 게임 종료 화면 -->
+  <div id="end-screen" class="hidden centered">
+    <h2>게임 종료</h2>
+    <p id="final-message"></p>
+    <p>최종 점수: <span id="final-score"></span></p>
+
+    <!-- 점수 전송 버튼 / 결과 영역 -->
+    <button class="difficulty-btn" onclick="sendScore()">점수 전송</button>
+    <div id="response"></div>
+  </div>
+</div>
+
+<script>
+// MathJax.typeset() 후 수식 렌더링
+
+const DIFFICULTY = {
+  top:  { time: 20, score: 20 },
+  high: { time: 30, score: 15 },
+  mid:  { time: 40, score: 13 },
+  low:  { time: 0,  score: 10 }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+// 문제 목록: '해가 없다'를 정답으로 갖는 문제는 제외했으며, 보기를 최대한 간단히 표현했습니다.
+// 순서는 게임 중에 무작위(shuffle)로 섞습니다.
+////////////////////////////////////////////////////////////////////////////////////////
+
+const allProblems = [
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 4x \\ge 0)\\).",
+    choices: [
+      "( x ≤ 4 ) or ( x ≥ 0 )",
+      "( 0 < x < 4 )",
+      "( x ≤ 0 ) or ( x ≥ 4 )",
+      "( x ≤ -4 ) or ( x ≥ 0 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - x > 0)\\).",
+    choices: [
+      "( x < 0 ) or ( x > 1 )",
+      "( x < 1 ) or ( x > 0 )",
+      "( 0 < x < 1 )",
+      "( 0 ≤ x ≤ 1 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 2x - 8 ≤ 0)\\).",
+    choices: [
+      "( x ≤ -4 ) or ( x ≥ 2 )",
+      "( -4 ≤ x ≤ 2 )",
+      "( x < -4 ) or ( x > 2 )",
+      "( -4 < x < 2 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 5x + 6 < 0)\\).",
+    choices: [
+      "( x ≤ 2 ) or ( x ≥ 3 )",
+      "( 2 ≤ x ≤ 3 )",
+      "( x < 2 ) or ( x > 3 )",
+      "( 2 < x < 3 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 2x - 3 < 0)\\).",
+    choices: [
+      "( 1 ≤ x ≤ 3 )",
+      "( -1 < x < 3 )",
+      "( -3 < x < 1 )",
+      "( -3 ≤ x ≤ 1 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 - x + 6 ≥ 0)\\).",
+    choices: [
+      "( -3 ≤ x ≤ 2 )",
+      "( x < -3 ) or ( x > 2 )",
+      "( -3 ≤ x < 2 )",
+      "( -2 ≤ x ≤ 3 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-3x^2 + 2x + 1 < 0)\\).",
+    choices: [
+      "( -1 < x < 1/3 ) or ( x > 1 )",
+      "( x < -1/3 ) or ( x > 1 )",
+      "( x < -1 ) or ( x > 1/3 )",
+      "( x ≤ -1/3 ) or ( x ≥ 1 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 8x + 15 ≥ 0)\\).",
+    choices: [
+      "( x ≤ -3 ) or ( x ≥ 5 )",
+      "( -5 < x < -3 )",
+      "( x < -5 ) or ( x > -3 )",
+      "( x ≤ -5 ) or ( x ≥ -3 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 3x + 2 ≤ 0)\\).",
+    choices: [
+      "( x < 1 ) or ( x > 2 )",
+      "( 1 < x < 2 )",
+      "( 1 ≤ x ≤ 2 )",
+      "( 0 ≤ x ≤ 2 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 - 3x + 18 > 0)\\).",
+    choices: [
+      "( -6 < x < 3 )",
+      "( x ≤ -6 ) or ( x ≥ 3 )",
+      "( -6 ≤ x ≤ 3 )",
+      "( -3 < x < 6 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-3x^2 - 5x + 2 ≤ 0)\\).",
+    choices: [
+      "( x < -2 ) or ( x > 1/3 )",
+      "( x ≤ -2 ) or ( x ≥ 1/3 )",
+      "( -2 ≤ x ≤ 1/3 )",
+      "( x ≤ -1/3 ) or ( x ≥ 2 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((6 - x^2 < 0)\\).",
+    choices: [
+      "( -√6 ≤ x ≤ √6 )",
+      "( -√6 < x < √6 )",
+      "( x < √6 )",
+      "( x < -√6 ) or ( x > √6 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 5x - 14 ≤ 0)\\).",
+    choices: [
+      "( -7 < x < 2 )",
+      "( x ≤ -7 ) or ( x ≥ 2 )",
+      "( -7 ≤ x ≤ 2 )",
+      "( x ≤ 2 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 11x + 30 < 0)\\).",
+    choices: [
+      "( 5 < x < 6 )",
+      "( 5 ≤ x ≤ 6 )",
+      "( x ≤ 5 ) or ( x ≥ 6 )",
+      "( x < 5 ) or ( x > 6 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((2x^2 - 7x + 3 < 0)\\).",
+    choices: [
+      "( x ≤ 1/2 ) or ( x ≥ 3 )",
+      "( 1/2 < x < 3 )",
+      "( 1/2 ≤ x ≤ 3 )",
+      "( 0 < x < 3 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-2x^2 + 7x + 4 > 0)\\).",
+    choices: [
+      "( x ≤ -1/2 ) or ( x ≥ 4 )",
+      "( -1/2 < x ≤ 4 )",
+      "( x < -1/2 ) or ( x > 4 )",
+      "( -1/2 < x < 4 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((2x^2 - 5x + 3 > 0)\\).",
+    choices: [
+      "( 1 < x < 3/2 )",
+      "( x < 1 ) or ( x ≥ 3/2 )",
+      "( x < 1 ) or ( x > 3/2 )",
+      "( x ≤ 1 ) or ( x > 3/2 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-2x^2 - x + 6 < 0)\\).",
+    choices: [
+      "( x < -2 ) or ( x > 3/2 )",
+      "( -2 ≤ x ≤ 3/2 )",
+      "( x ≤ -2 ) or ( x ≥ 3/2 )",
+      "( x = -2 ) or ( x = 3/2 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 6x + 9 > 0)\\).",
+    choices: [
+      "( x > 3 )",
+      "( x < 3 ) or ( x > 3 )",
+      "( x ≥ 3 )",
+      "( x ≤ 3 ) or ( x ≥ 3 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 2x + 1 > 0)\\).",
+    choices: [
+      "모든 x",
+      "x = -1",
+      "x < -1 or x > -1",
+      "해가 없다"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 8x + 16 > 0)\\).",
+    choices: [
+      "( x < 4 ) or ( x > 4 )",
+      "모든 실수",
+      "( x ≤ 4 ) or ( x ≥ 4 )",
+      "해가 없다"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 4x + 4 ≥ 0)\\).",
+    choices: [
+      "x = 2",
+      "모든 실수",
+      "( x ≥ 2 )",
+      "해가 없다"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 4 ≤ 4x)\\).",
+    choices: [
+      "( x ≤ 2 ) or ( x ≥ 2 )",
+      "( x < 2 ) or ( x > 2 )",
+      "( 2 < x ≤ 4 )",
+      "x = 2"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 2√2 x + 2 > 0)\\).",
+    choices: [
+      "( x < √2 ) or ( x > √2 )",
+      "x = √2",
+      "해가 없다",
+      "모든 실수"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 2√5 x + 5 ≥ 0)\\).",
+    choices: [
+      "( x < -√5 ) or ( x > √5 )",
+      "x = -√5",
+      "해가 없다",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 + 10x - 25 ≤ 0)\\).",
+    choices: [
+      "x = 5",
+      "해가 없다",
+      "모든 실수",
+      "x > 5"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-4x^2 + 4x - 1 ≥ 0)\\).",
+    choices: [
+      "x = 1/2",
+      "해가 없다",
+      "( x < 1/2 ) or ( x > 1/2 )",
+      "모든 실수"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((16x + x^2 > -64)\\).",
+    choices: [
+      "x = -8",
+      "x < -8 or x > -8",
+      "x ≤ -8 or x ≥ -8",
+      "모든 실수"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((4x^2 ≤ 3(4x - 3))\\).",
+    choices: [
+      "모든 실수",
+      "x > 3/2",
+      "x = 3/2",
+      "x < 3/2"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((9x^2 - 6x + 1 ≥ 0)\\).",
+    choices: [
+      "모든 실수",
+      "x = 1/3",
+      "해가 없다",
+      "x ≤ 1/3 or x ≥ 1/3"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((16x^2 - 8x + 1 ≥ 0)\\).",
+    choices: [
+      "해가 없다",
+      "모든 실수",
+      "x = 0.25",
+      "( x < 0.25 ) or ( x > 0.25 )"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 + 10x - 25 < 0)\\).",
+    choices: [
+      "x ≥ 5",
+      "모든 실수",
+      "x = 5",
+      "( x < 5 ) or ( x > 5 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 ≤ 10x - 25)\\).",
+    choices: [
+      "x > 5",
+      "x = 5",
+      "해가 없다",
+      "모든 실수"
+    ],
+    answer: 1
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 2√3 x + 3 > 0)\\).",
+    choices: [
+      "x = -√3",
+      "모든 실수",
+      "해가 없다",
+      "( x < -√3 ) or ( x > -√3 )"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 < x + 1)\\).",
+    choices: [
+      "해가 없다",
+      "x = -1",
+      "모든 실수",
+      "( x < 0 ) or ( x > 0 )"
+    ],
+    answer: 2
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 4x + 5 > 0)\\).",
+    choices: [
+      "모든 실수",
+      "x = 2",
+      "해가 없다",
+      "( x < 2 ) or ( x > 2 )"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 2x + 3 > 0)\\).",
+    choices: [
+      "x = 1",
+      "해가 없다",
+      "x > 0",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 + 3x - 4 < 0)\\).",
+    choices: [
+      "모든 실수",
+      "해가 없다",
+      "x = 3/2",
+      "x > 4"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 4x + 7 > 0)\\).",
+    choices: [
+      "해가 없다",
+      "x = -2",
+      "x > 0",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 2x + 8 ≥ 0)\\).",
+    choices: [
+      "모든 실수",
+      "해가 없다",
+      "x = 1",
+      "x ≥ 0"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((2x^2 - 4x + 3 ≥ 0)\\).",
+    choices: [
+      "해가 없다",
+      "x = 1",
+      "x ≤ 1",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 + 3x + 4 > 0)\\).",
+    choices: [
+      "x = -1.5",
+      "해가 없다",
+      "x > 0",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((x^2 - 4x + 10 ≥ 0)\\).",
+    choices: [
+      "모든 실수",
+      "x = 2",
+      "해가 없다",
+      "x ≥ 2"
+    ],
+    answer: 0
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-x^2 + 4x - 5 ≤ 0)\\).",
+    choices: [
+      "x = 2",
+      "x ≤ 2",
+      "x ≥ 2",
+      "모든 실수"
+    ],
+    answer: 3
+  },
+  {
+    question: "아래 부등식을 풀어주세요: \\((-2x^2 ≤ 3 - 2x)\\).",
+    choices: [
+      "해가 없다",
+      "x = 1",
+      "모든 실수",
+      "( x < 1 ) or ( x > 1 )"
+    ],
+    answer: 2
+  }
+];
+
+// 전역변수
+let currentProblems = [];
+let currentIndex = 0;
+let score = 0;
+let lives = 3;
+let totalElapsed = 0;
+let timer = null;
+let timeLeft = 0;
+let playerName = "";
+let currentDifficulty = "low";
+
+function shuffleArray(array) {
+  for(let i = array.length - 1; i > 0; i--){
+    const r = Math.floor(Math.random() * (i + 1));
+    [array[i], array[r]] = [array[r], array[i]];
+  }
+}
+
+function startGame(difficulty) {
+  playerName = document.getElementById("playerName").value.trim() || "익명";
+  currentDifficulty = difficulty;
+  document.getElementById("welcome-screen").classList.add("hidden");
+  document.getElementById("game-screen").classList.remove("hidden");
+
+  // 문제 섞기
+  currentProblems = [...allProblems];
+  shuffleArray(currentProblems);
+
+  currentIndex = 0;
+  score = 0;
+  lives = 3;
+  totalElapsed = 0;
+  document.getElementById("score").innerText = score;
+  document.getElementById("lives").innerText = lives;
+  document.getElementById("elapsedTime").innerText = totalElapsed;
+
+  showProblem();
+  if (DIFFICULTY[difficulty].time > 0) {
+    startTimer();
+  } else {
+    document.getElementById("energyBar").style.width = "0%";
+  }
+}
+
+function startTimer() {
+  timeLeft = DIFFICULTY[currentDifficulty].time;
+  updateEnergyBar();
+
+  if(timer) clearInterval(timer);
+  timer = setInterval(() => {
+    timeLeft--;
+    totalElapsed++;
+    document.getElementById("elapsedTime").innerText = totalElapsed;
+    updateEnergyBar();
+    if(timeLeft <= 0){
+      loseLife();
+    }
+  }, 1000);
+}
+
+function updateEnergyBar() {
+  if(DIFFICULTY[currentDifficulty].time === 0){
+    document.getElementById("energyBar").style.width = "0%";
+    return;
+  }
+  const ratio = timeLeft / DIFFICULTY[currentDifficulty].time;
+  document.getElementById("energyBar").style.width = (ratio * 80) + "%";
+}
+
+function showProblem() {
+  if(currentIndex >= currentProblems.length) {
+    endGame("모든 문제를 풀었습니다!");
+    return;
+  }
+  const container = document.getElementById("question-container");
+  container.innerHTML = "";
+
+  const pData = currentProblems[currentIndex];
+  
+  // 문제 출력
+  const qDiv = document.createElement("div");
+  qDiv.innerHTML = "<p>" + pData.question + "</p>";
+  container.appendChild(qDiv);
+
+  // 보기 출력
+  pData.choices.forEach((choice, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "answer-choice difficulty-btn";
+    btn.innerHTML = choice;
+    btn.onclick = () => checkAnswer(idx);
+    container.appendChild(btn);
+    container.appendChild(document.createElement("br"));
+  });
+
+  MathJax.typeset();
+}
+
+function checkAnswer(idx) {
+  const pData = currentProblems[currentIndex];
+  if(idx === pData.answer){
+    alert("정답입니다!");
+    score += DIFFICULTY[currentDifficulty].score;
+    document.getElementById("score").innerText = score;
+  } else {
+    alert("틀렸습니다! 정답: " + (pData.answer + 1) + "번 => " + pData.choices[pData.answer]);
+    loseLife();
+  }
+  nextProblem();
+}
+
+function loseLife(){
+  lives--;
+  document.getElementById("lives").innerText = lives;
+  if(lives <= 0){
+    endGame("기회를 모두 소진했습니다.");
+  } else {
+    nextProblem();
+  }
+}
+
+function nextProblem(){
+  if(timer) clearInterval(timer);
+  currentIndex++;
+  if(currentIndex < currentProblems.length){
+    showProblem();
+    if(DIFFICULTY[currentDifficulty].time > 0){
+      startTimer();
+    }
+  } else {
+    endGame("모든 문제를 풀었습니다!");
+  }
+}
+
+function endGame(msg){
+  if(timer) clearInterval(timer);
+  document.getElementById("game-screen").classList.add("hidden");
+  document.getElementById("end-screen").classList.remove("hidden");
+  document.getElementById("final-message").innerText = msg;
+  document.getElementById("final-score").innerText = score;
+}
+
+// 점수 전송
+function sendScore(){
+  const gameName = "판별식을 이용한 이차부등식의 풀이";
+  saveData(gameName, playerName, score, totalElapsed);
+}
+
+// (31) 데이터 전송 함수
+async function saveData(game, name, score, elapsedTime){
+  const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+  const requestData = {
+    game,
+    name,
+    score: parseInt(score, 10),
+    elapsedTime: parseInt(elapsedTime, 10)
+  };
+
+  try {
+    const response = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+    const responseData = await response.json();
+    if(response.ok){
+      document.getElementById('response').innerText =
+        `성공: ${JSON.stringify(responseData, null, 2)}`;
+    } else {
+      document.getElementById('response').innerText =
+        `오류: ${JSON.stringify(responseData, null, 2)}`;
+    }
+  } catch(error){
+    console.error('요청 실패:', error);
+    document.getElementById('response').innerText =
+      `네트워크 오류: ${error.message}`;
+  }
+}
+</script>
+
+</body>
+</html>
